@@ -1,0 +1,91 @@
+---
+title: "problem3"
+author: "Varun Venkatesh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+Problem 3: Price Elasticity of Demand
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Read in the data
+milk_data <- read.csv("milk.csv")
+
+# Examine the data
+head(milk_data)
+summary(milk_data)
+
+# Plot the relationship between price and quantity
+plot(milk_data$price, milk_data$sales, 
+     main="Relationship between Milk Price and Sales",
+     xlab="Price ($)", ylab="Sales (number of participants)", 
+     pch=19, col="darkblue")
+```
+The power-law model for price elasticity is given by:
+$Q = KP^{\beta}$
+Where:
+
+$Q$ is the quantity demanded (sales)
+$P$ is the price
+$K$ is a constant
+$\beta$ is the price elasticity of demand
+
+Taking the natural logarithm of both sides:
+$\log(Q) = \log(K) + \beta \log(P)$
+This transforms the model into a linear relationship in the log-log space, where $\beta$ is the slope and represents the price elasticity.
+
+
+```{r cars}
+# Transform to log-log scale
+milk_data$log_price <- log(milk_data$price)
+milk_data$log_sales <- log(milk_data$sales)
+
+# Fit the linear model in log-log space
+elasticity_model <- lm(log_sales ~ log_price, data = milk_data)
+summary(elasticity_model)
+
+# Extract the price elasticity (the coefficient of log_price)
+price_elasticity <- coef(elasticity_model)[2]
+cat("Estimated price elasticity of demand for milk:", round(price_elasticity, 3), "\n")
+
+# Plot the relationship in log-log scale
+plot(milk_data$log_price, milk_data$log_sales, 
+     main="Log-Log Plot of Milk Price and Sales",
+     xlab="Log Price", ylab="Log Sales", 
+     pch=19, col="darkblue")
+abline(elasticity_model, col="red", lwd=2)
+```
+
+Now let's compute a 95% bootstrap confidence interval for the price elasticity:
+
+
+```{r pressure, echo=FALSE}
+library(boot)
+
+# Bootstrap function for elasticity
+boot_elasticity <- function(data, indices) {
+  boot_sample <- data[indices, ]
+  model <- lm(log_sales ~ log_price, data = boot_sample)
+  return(coef(model)[2])  # return the slope (elasticity)
+}
+
+# Set random seed for reproducibility
+set.seed(123)
+
+# Perform bootstrap
+boot_results <- boot(milk_data, boot_elasticity, R = 1000)
+
+# Calculate 95% confidence interval
+ci_elasticity <- boot.ci(boot_results, type = "perc")
+
+# Display results
+cat("Price elasticity of demand for milk:", round(price_elasticity, 3), "\n")
+cat("95% Bootstrap CI: [", round(ci_elasticity$percent[4], 3), ",", 
+    round(ci_elasticity$percent[5], 3), "]\n")
+
+
+```
+
+Results and Interpretation
+
+To estimate the price elasticity of demand for milk, I used the power-law model $Q = KP^{\beta}$, where $\beta$ represents the price elasticity. By taking the natural logarithm of both sides, I transformed this into a linear model in log-log space: $\log(Q) = \log(K) + \beta \log(P)$. Fitting this linear model to the data, I found the estimated price elasticity of demand for milk to be -1.619  with a 95% bootstrap confidence interval of [ -1.771 , -1.439 ]
+Since this elasticity is negative, it confirms the law of demand: as price increases, quantity demanded decreases. The magnitude of the elasticity is greater than 1, which indicates that milk demand is elastic,consumers are relatively sensitive to price changes. Specifically, a 1% increase in the price of milk leads to approximately a 1.619 % decrease in quantity demanded.

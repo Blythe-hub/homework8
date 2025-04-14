@@ -1,0 +1,180 @@
+---
+title: "problem2file"
+author: "Varun Venkatesh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+Load Data
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+# Read in the data
+covid_data <- read.csv("covid.csv")
+
+# Examine the data
+head(covid_data)
+str(covid_data)
+summary(covid_data)
+
+# Check data for both countries
+table(covid_data$country)
+
+```
+
+Fitting Exponential Growth Models
+For exponential growth models, use the formula:
+
+$\text{deaths} = \text{deaths}_0 \times e^{rt}$
+
+where $r$ is the growth rate and $t$ is time (days since first death).
+
+Taking the log of both sides:
+
+$\log(\text{deaths}) = \log(\text{deaths}_0) + rt$
+
+Can fit a linear model to the log of deaths:
+
+
+```{r cars}
+# Create log of deaths
+covid_data$log_deaths <- log(covid_data$deaths)
+
+# Splitting the data by country
+italy_data <- subset(covid_data, country == "Italy")
+spain_data <- subset(covid_data, country == "Spain")
+
+# Fit exponential models (linear in log-scale)
+italy_model <- lm(log_deaths ~ days_since_first_death, data = italy_data)
+spain_model <- lm(log_deaths ~ days_since_first_death, data = spain_data)
+
+# Model summaries
+summary(italy_model)
+summary(spain_model)
+
+# Extract growth rates
+growth_rate_italy <- coef(italy_model)[2]
+growth_rate_spain <- coef(spain_model)[2]
+
+# Calculate doubling times (ln(2)/r)
+doubling_time_italy <- log(2)/growth_rate_italy
+doubling_time_spain <- log(2)/growth_rate_spain
+
+# Display results
+cat("Growth rate (Italy):", round(growth_rate_italy, 3), "\n")
+cat("Doubling time (Italy):", round(doubling_time_italy, 1), "days\n")
+cat("Growth rate (Spain):", round(growth_rate_spain, 3), "\n")
+cat("Doubling time (Spain):", round(doubling_time_spain, 1), "days\n")
+```
+
+
+Bootstrap Confidence Intervals
+Compute 95% bootstrap confidence intervals for the growth rates and doubling times:
+
+```{r pressure, echo=FALSE}
+library(boot)
+
+# Bootstrap function for growth rate
+boot_growth_rate <- function(data, indices) {
+  boot_sample <- data[indices, ]
+  model <- lm(log_deaths ~ days_since_first_death, data = boot_sample)
+  return(coef(model)[2])  # return the slope (growth rate)
+}
+
+# Bootstrap function for doubling time
+boot_doubling_time <- function(data, indices) {
+  boot_sample <- data[indices, ]
+  model <- lm(log_deaths ~ days_since_first_death, data = boot_sample)
+  return(log(2)/coef(model)[2])  # return doubling time
+}
+
+# Set random seed for reproducibility
+set.seed(123)
+
+# Perform bootstrap for Italy
+boot_italy_growth <- boot(italy_data, boot_growth_rate, R = 1000)
+boot_italy_doubling <- boot(italy_data, boot_doubling_time, R = 1000)
+
+# Perform bootstrap for Spain
+boot_spain_growth <- boot(spain_data, boot_growth_rate, R = 1000)
+boot_spain_doubling <- boot(spain_data, boot_doubling_time, R = 1000)
+
+# Calculate 95% confidence intervals
+ci_italy_growth <- boot.ci(boot_italy_growth, type = "perc")
+ci_italy_doubling <- boot.ci(boot_italy_doubling, type = "perc")
+ci_spain_growth <- boot.ci(boot_spain_growth, type = "perc")
+ci_spain_doubling <- boot.ci(boot_spain_doubling, type = "perc")
+
+# Display results
+cat("Italy growth rate:", round(growth_rate_italy, 3), 
+    "95% CI: [", round(ci_italy_growth$percent[4], 3), ",", 
+    round(ci_italy_growth$percent[5], 3), "]\n")
+
+cat("Italy doubling time:", round(doubling_time_italy, 1), "days", 
+    "95% CI: [", round(ci_italy_doubling$percent[4], 1), ",", 
+    round(ci_italy_doubling$percent[5], 1), "]\n")
+
+cat("Spain growth rate:", round(growth_rate_spain, 3), 
+    "95% CI: [", round(ci_spain_growth$percent[4], 3), ",", 
+    round(ci_spain_growth$percent[5], 3), "]\n")
+
+cat("Spain doubling time:", round(doubling_time_spain, 1), "days", 
+    "95% CI: [", round(ci_spain_doubling$percent[4], 1), ",", 
+    round(ci_spain_doubling$percent[5], 1), "]\n")
+```
+
+
+Line graph showing reported daily deaths over time for both countries:
+```{r}
+library(ggplot2)
+
+# Create a line graph
+ggplot(covid_data, aes(x = days_since_first_death, y = deaths, color = country)) +
+  geom_line(size = 1) +
+  geom_point(alpha = 0.7) +
+  scale_color_manual(values = c("Italy" = "darkblue", "Spain" = "darkred")) +
+  labs(title = "COVID-19 Daily Deaths in Italy and Spain",
+       x = "Days Since First Death",
+       y = "Number of Deaths",
+       color = "Country") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+Printed Summary of results:
+```{r}
+# Create a summary data frame using existing variable values
+results_summary <- data.frame(
+  Country = c("Italy", "Spain"),
+  Growth_Rate = c(growth_rate_italy, growth_rate_spain),
+  Growth_Rate_CI_Lower = c(ci_italy_growth$percent[4], ci_spain_growth$percent[4]),
+  Growth_Rate_CI_Upper = c(ci_italy_growth$percent[5], ci_spain_growth$percent[5]),
+  Doubling_Time_Days = c(doubling_time_italy, doubling_time_spain),
+  Doubling_Time_CI_Lower = c(ci_italy_doubling$percent[4], ci_spain_doubling$percent[4]),
+  Doubling_Time_CI_Upper = c(ci_italy_doubling$percent[5], ci_spain_doubling$percent[5])
+)
+
+# Print formatted results
+print(results_summary)
+
+# For nicer formatting in RMarkdown
+library(knitr)
+kable(results_summary, 
+      col.names = c("Country", "Growth Rate", "GR CI Lower", "GR CI Upper", 
+                    "Doubling Time (days)", "DT CI Lower", "DT CI Upper"),
+      digits = c(0, 3, 3, 3, 1, 1, 1))
+
+# Optional: Create a formatted string for each country that could be used in text
+italy_text <- sprintf("Italy: Growth rate: %.3f (95%% CI: [%.3f, %.3f]), Doubling time: %.1f days (95%% CI: [%.1f, %.1f])",
+                     growth_rate_italy, 
+                     ci_italy_growth$percent[4], ci_italy_growth$percent[5],
+                     doubling_time_italy,
+                     ci_italy_doubling$percent[4], ci_italy_doubling$percent[5])
+
+spain_text <- sprintf("Spain: Growth rate: %.3f (95%% CI: [%.3f, %.3f]), Doubling time: %.1f days (95%% CI: [%.1f, %.1f])",
+                     growth_rate_spain, 
+                     ci_spain_growth$percent[4], ci_spain_growth$percent[5],
+                     doubling_time_spain,
+                     ci_spain_doubling$percent[4], ci_spain_doubling$percent[5])
+```
+The growth rate represents the rate at which the number of daily deaths was increasing exponentially during this period. A higher growth rate means faster exponential growth. The doubling time is the time it takes for the number of daily deaths to double, calculated as ln(2)/growth rate.
+From our analysis, Spain appears to have had a slightly higher growth rate than Italy during this initial wave, resulting in a shorter doubling time for daily deaths. This suggests that in the early stages of the pandemic, the daily death count was increasing at a faster pace in Spain compared to Italy.

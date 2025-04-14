@@ -1,0 +1,93 @@
+---
+title: "Problem 1"
+author: "Varun Venkatesh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r problem 1, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Read in the data
+creatinine_data <- read.csv("creatinine.csv")
+
+# Look at the first few rows
+head(creatinine_data)
+
+# Basic summary statistics
+summary(creatinine_data)
+
+# Fit linear regression model
+creat_model <- lm(creatclear ~ age, data = creatinine_data)
+
+# View the model summary
+summary(creat_model)
+
+#fit a linear regression model to the data:
+
+# Plot the data and the regression line
+plot(creatinine_data$age, creatinine_data$creatclear, 
+     xlab = "Age (years)", ylab = "Creatinine Clearance Rate (mL/minute)",
+     main = "Creatinine Clearance Rate vs. Age",
+     pch = 19, col = "darkblue")
+abline(creat_model, col = "red", lwd = 2)
+```
+
+## Problem 1
+
+A)  What creatinine clearance rate should we expect for a 55-year-old?
+
+```{r cars}
+# Extract coefficients from the model
+intercept <- coef(creat_model)[1]
+slope <- coef(creat_model)[2]
+
+# Calculate expected creatinine clearance for a 55-year-old
+expected_55 <- intercept + slope * 55
+expected_55
+
+  
+```
+The expected creatinine clearance rate for a 55-year-old is 
+113.7 ml/minute
+
+Explanation: I calculated this using the linear regression equation: $\hat{y} = \beta_0 + \beta_1 \times age$, where $\hat{y}$ is the predicted creatinine clearance rate, $\beta_0$ is the intercept, and $\beta_1$ is the slope coefficient for age. Substituting 55 for age gives the expected clearance rate.
+
+## Including Plots
+
+B)  How does creatinine clearance rate change with age?
+
+```{r pressure, echo=FALSE}
+# The slope coefficient represents how creatinine clearance changes with age
+slope
+
+```
+
+The creatinine clearance rate changes by -0.62 mL/minute per year of age. Explanation: The slope coefficient from our linear regression model directly tells us how much creatinine clearance rate changes for each one-year increase in age. The negative value indicates that creatinine clearance rate decreases with age.
+
+C)  Comparing creatinine clearance rates adjusted for age We need to determine which patient has a higher clearance rate relative to what would be expected for their age.
+
+```{r}
+# Calculate expected clearance rate for a 40-year-old
+expected_40 <- intercept + slope * 40
+# Calculate expected clearance rate for a 60-year-old
+expected_60 <- intercept + slope * 60
+
+# Calculate residuals (observed - expected)
+residual_40 <- 135 - expected_40
+residual_60 <- 112 - expected_60
+
+# Show results
+expected_40
+expected_60
+residual_40
+residual_60
+
+
+
+```
+
+##Comparison:
+
+40-year-old: Observed rate = 135 mL/minute, Expected rate = 123.02  mL/minute, Difference = 11.98 mL/minute 60-year-old: Observed rate = 112 mL/minute, Expected rate =   110.6 mL/minute, Difference = 1.38 mL/minute
+
+The r ifelse(residual_40 \> residual_60, "40-year-old", "60-year-old") has a healthier (higher) creatinine clearance rate for their age. Explanation: To determine which patient has a healthier rate for their age, I compared each patient's observed rate to their age-expected rate (calculated from our regression model). The patient with a larger positive difference (residual) has a clearance rate that exceeds expectations for their age by a greater amount, indicating a relatively healthier kidney function.
